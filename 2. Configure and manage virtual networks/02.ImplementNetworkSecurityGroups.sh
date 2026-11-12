@@ -35,7 +35,7 @@ createNetworkSecurityGroups() {
             --query id \
             --output tsv)
 
-    echo $ASG_ID
+    echo "$ASG_ID"
 
     createNetworkSecurityRule "$MYNSGSECURE" "AllowASG" "Inbound" "Allow" "Tcp" "*" "*" "$ASG_ID" 80 80
     

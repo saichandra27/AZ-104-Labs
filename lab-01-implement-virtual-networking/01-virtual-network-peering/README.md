@@ -1,4 +1,6 @@
-https://learn.microsoft.com/en-us/training/modules/configure-virtual-networks/9-simulation-create-networks
+# Exercise: Create and configure virtual networks
+
+<https://learn.microsoft.com/en-us/training/modules/configure-virtual-networks/9-simulation-create-networks>
 
 Exercise scenario
 
@@ -9,4 +11,3 @@ The app-vnet hosts the application. The app-vnet virtual network requires two su
 The hub-vnet only requires a subnet for the firewall.
 The two virtual networks must be able to communicate with each other securely and privately through virtual network peering.
 Both virtual networks should be in the same region.
-

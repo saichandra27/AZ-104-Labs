@@ -2,9 +2,101 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/01.Variables.sh"
+# shellcheck source=/dev/null
+source "$script_dir/../1. Common/02.CommonFunctions.sh"
 
-createPublicIpAddress() {
+# Function to verify VNet successfully created or already exists
+verify_vnet_created_successfully() {
+    local vnetName=$1
+
+    if az network vnet show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$vnetName" >/dev/null 2>&1; then
+        echo "VNet '$vnetName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to verify subnet successfully created or already exists
+verify_subnet_created_successfully() {
+    local vnetName=$1
+    local subnetName=$2
+
+    if az network vnet subnet show \
+        --resource-group "$RESOURCE_GROUP" \
+        --vnet-name "$vnetName" \
+        --name "$subnetName" >/dev/null 2>&1; then
+        echo "Subnet '$subnetName' in VNet '$vnetName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to verify virtual network peering exists
+verify_vnet_peering_created_successfully() {
+    local vnetName=$1
+    local peeringName=$2
+
+    if az network vnet peering show \
+        --resource-group "$RESOURCE_GROUP" \
+        --vnet-name "$vnetName" \
+        --name "$peeringName" >/dev/null 2>&1; then
+        echo "VNet Peering '$peeringName' in VNet '$vnetName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to verify network security group successfully created or already exists
+verify_nsg_created_successfully() {
+    local nsgName=$1
+
+    if az network nsg show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$nsgName" >/dev/null 2>&1; then
+        echo "Network Security Group '$nsgName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to verify application security group successfully created or already exists
+verify_asg_created_successfully() {
+    local asgName=$1
+
+    if az network asg show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$asgName" >/dev/null 2>&1; then
+        echo "Application Security Group '$asgName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to verify network security rule successfully created or already exists
+verify_nsg_rule_created_successfully() {
+    local nsgName=$1
+    local ruleName=$2
+
+    if az network nsg rule show \
+        --resource-group "$RESOURCE_GROUP" \
+        --nsg-name "$nsgName" \
+        --name "$ruleName" >/dev/null 2>&1; then
+        echo "Network Security Rule '$ruleName' in NSG '$nsgName' created successfully."
+        return 0
+    fi
+
+    return 1
+}
+
+# Function to create public IP address
+create_public_ip_address() {
     local name=$1
     local location=$2
     local sku=$3
@@ -24,7 +116,8 @@ createPublicIpAddress() {
         --allocation-method Static
 }
 
-createVnet() {
+# Function to create virtual network
+create_vnet() {
     local name=$1
     local location=$2
     local addressprefix=$3
@@ -47,7 +140,8 @@ createVnet() {
         --subnet-prefixes "$subnetprefix"
 }
 
-createSubNet(){
+# Function to create subnet
+create_subnet() {
     local vnetName=$1
     local subnetName=$2
     local addressPrefix=$3
@@ -67,7 +161,8 @@ createSubNet(){
         --address-prefixes "$addressPrefix"
 }
 
-createVirtualNetworkPeering() {
+# Function to create virtual network peering
+create_virtual_network_peering() {
     local vnetname=$1
     local remotevnetname=$2
     local peeringName=${3:-"${vnetname}-to-${remotevnetname}"}
@@ -89,7 +184,8 @@ createVirtualNetworkPeering() {
         --allow-forwarded-traffic
 }
 
-createNetworkSecurityGroup() {
+# Function to create network security group
+create_network_security_group() {
     local nsgName=$1
     local location=$2
 
@@ -106,7 +202,8 @@ createNetworkSecurityGroup() {
         --location "$location"
 }
 
-createApplicationSecurityGroup() {
+# Function to create application security group
+create_application_security_group() {
     local asgName=$1
     local location=$2
 
@@ -123,7 +220,8 @@ createApplicationSecurityGroup() {
         --location "$location"
 }
 
-createNetworkSecurityRule() {
+# Function to create network security rule
+create_network_security_rule() {
     local nsgName=$1
     local ruleName=$2
     local priority=$3
@@ -157,7 +255,8 @@ createNetworkSecurityRule() {
         --destination-port-ranges "$destinationPortRange"
 }
 
-updateSubnetWithNSG() {
+# Function to update subnet with network security group
+update_subnet_with_nsg() {
     local vnetName=$1
     local subnetName=$2
     local nsgName=$3
@@ -167,4 +266,32 @@ updateSubnetWithNSG() {
         --vnet-name "$vnetName" \
         --name "$subnetName" \
         --network-security-group "$nsgName"
+}
+
+#Function to create route table
+create_route_table() {
+    local name=$1
+    local disableBgpRoutePropagation=$2
+    
+    az network route-table create \
+        --name "$name" \
+        --resource-group "$RESOURCE_GROUP" \
+        --disable-bgp-route-propagation "$disableBgpRoutePropagation"
+}
+
+#Function to create custom route
+create_custom_route() {
+    local name=$1
+    local routeTableName=$2
+    local disableBgpRoutePropagation=$2
+    local nextHopType=$3
+    local nextHopIpAddress=$4
+
+    az network route-table route create \
+    --route-table-name "$routeTableName" \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$name" \
+    --address-prefix 10.0.1.0/24 \
+    --next-hop-type "$nextHopType" \
+    --next-hop-ip-address "$nextHopIpAddress"
 }

@@ -184,3 +184,20 @@ verify_subnet_with_route_table() {
     echo "Route Table '$routeTableName' is not associated with Subnet '$subnetName'."
     return 1
 }
+
+verify_vm_created_successfully(){
+    local virtualMachineName=$1
+    
+    # Check whether VM already exists
+    if az vm show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$virtualMachineName" \
+        >/dev/null 2>&1; then
+
+        echo "Virtual Machine '$virtualMachineName' created successfully."
+        return 0
+    fi
+
+    echo "Virtual Machine '$virtualMachineName' verification failed."
+    return 1
+}

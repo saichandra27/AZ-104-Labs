@@ -2,9 +2,15 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-#shellcheck source=/dev/null
-source "$script_dir/../1. Common/functions_create.sh"
-source "$script_dir/../1. Common/functions_update.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/variables.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_create.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_update.sh"
 
 create_network_security_groups() {
     az group create \
@@ -12,7 +18,13 @@ create_network_security_groups() {
         --location "$LOCATION"
 
     #Create CoreServicesVnet, SharedServicesSubnet and DatabaseSubnet subnets
-    create_vnet "$CORE_SERVICES_VNET" "$LOCATION" "$CORE_SERVICES_VNET_PREFIX" "$SHARED_SERVICES_SUBNET" "$SHARED_SERVICES_SUBNET_PREFIX"
+    create_vnet \
+        "$CORE_SERVICES_VNET" \
+        "$LOCATION" \
+        "$CORE_SERVICES_VNET_PREFIX" \
+        "$SHARED_SERVICES_SUBNET" \
+        "$SHARED_SERVICES_SUBNET_PREFIX"
+        
     create_subnet "$CORE_SERVICES_VNET" "$DATABASE_SUBNET" "$DATABASE_SUBNET_PREFIX"
 
     #Create ManufacturingVnet SensorSubnet1 and SensorSubnet2 subnets

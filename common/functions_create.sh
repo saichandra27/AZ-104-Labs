@@ -331,3 +331,44 @@ create_custom_route() {
         echo "Custom Route '$name' configuration is correct. Skipping."
     fi
 }
+
+
+create_vm() {
+
+    local virtualMachineName=$1
+    local vnet=$2
+    local subnet=$3
+    local image=$4
+    local username=$5
+    local password=$6
+
+    # Check whether VM already exists
+    if az vm show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$virtualMachineName" \
+        >/dev/null 2>&1; then
+
+        echo "Virtual Machine '$virtualMachineName' already exists. Skipping."
+        return 0
+    fi
+
+    echo "Creating Virtual Machine '$virtualMachineName'..."
+
+    # Create VM
+    if ! az vm create \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$virtualMachineName" \
+        --vnet-name "$vnet" \
+        --subnet "$subnet" \
+        --image "$image" \
+        --admin-username "$username" \
+        --admin-password "$password" \
+        --output none; then
+
+        echo "ERROR: Failed to create VM '$virtualMachineName'."
+        return 1
+    fi
+
+    echo "Virtual Machine '$virtualMachineName' created successfully."
+
+}

@@ -32,3 +32,13 @@ update_subnet_with_route_table() {
         --name "$subnetName" \
         --route-table "$routeTableName"
 }
+
+#Function to enable the IP forwarding for network interface card
+update_subnet_with_ip_forwarding() {
+    local nicname=$1
+    local ipForwarding=$2
+    az network nic update \
+        --name "$nicname" \
+        --resource-group "$RESOURCE_GROUP" \
+        --ip-forwarding "$ipForwarding"
+}

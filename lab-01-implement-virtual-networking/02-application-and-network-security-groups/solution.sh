@@ -3,7 +3,8 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 #shellcheck source=/dev/null
-source "$script_dir/../1. Common/02.CommonFunctions.sh"
+source "$script_dir/../1. Common/functions_create.sh"
+source "$script_dir/../1. Common/functions_update.sh"
 
 create_network_security_groups() {
     az group create \

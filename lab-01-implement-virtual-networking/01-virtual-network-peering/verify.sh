@@ -2,7 +2,7 @@
 set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "$script_dir/../1. Common/02.CommonFunctions.sh"
+source "$script_dir/../1. Common/functions_verify.sh"
 
 verify_vnet_created_successfully "$APP_VNET"
 

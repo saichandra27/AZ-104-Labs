@@ -1,99 +1,11 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 # shellcheck source=/dev/null
-source "$script_dir/../1. Common/02.CommonFunctions.sh"
-
-# Function to verify VNet successfully created or already exists
-verify_vnet_created_successfully() {
-    local vnetName=$1
-
-    if az network vnet show \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$vnetName" >/dev/null 2>&1; then
-        echo "VNet '$vnetName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
-
-# Function to verify subnet successfully created or already exists
-verify_subnet_created_successfully() {
-    local vnetName=$1
-    local subnetName=$2
-
-    if az network vnet subnet show \
-        --resource-group "$RESOURCE_GROUP" \
-        --vnet-name "$vnetName" \
-        --name "$subnetName" >/dev/null 2>&1; then
-        echo "Subnet '$subnetName' in VNet '$vnetName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
-
-# Function to verify virtual network peering exists
-verify_vnet_peering_created_successfully() {
-    local vnetName=$1
-    local peeringName=$2
-
-    if az network vnet peering show \
-        --resource-group "$RESOURCE_GROUP" \
-        --vnet-name "$vnetName" \
-        --name "$peeringName" >/dev/null 2>&1; then
-        echo "VNet Peering '$peeringName' in VNet '$vnetName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
-
-# Function to verify network security group successfully created or already exists
-verify_nsg_created_successfully() {
-    local nsgName=$1
-
-    if az network nsg show \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$nsgName" >/dev/null 2>&1; then
-        echo "Network Security Group '$nsgName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
-
-# Function to verify application security group successfully created or already exists
-verify_asg_created_successfully() {
-    local asgName=$1
-
-    if az network asg show \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$asgName" >/dev/null 2>&1; then
-        echo "Application Security Group '$asgName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
-
-# Function to verify network security rule successfully created or already exists
-verify_nsg_rule_created_successfully() {
-    local nsgName=$1
-    local ruleName=$2
-
-    if az network nsg rule show \
-        --resource-group "$RESOURCE_GROUP" \
-        --nsg-name "$nsgName" \
-        --name "$ruleName" >/dev/null 2>&1; then
-        echo "Network Security Rule '$ruleName' in NSG '$nsgName' created successfully."
-        return 0
-    fi
-
-    return 1
-}
+source "$script_dir/variables.sh"
 
 # Function to create public IP address
 create_public_ip_address() {
@@ -255,43 +167,45 @@ create_network_security_rule() {
         --destination-port-ranges "$destinationPortRange"
 }
 
-# Function to update subnet with network security group
-update_subnet_with_nsg() {
-    local vnetName=$1
-    local subnetName=$2
-    local nsgName=$3
-
-    az network vnet subnet update \
-        --resource-group "$RESOURCE_GROUP" \
-        --vnet-name "$vnetName" \
-        --name "$subnetName" \
-        --network-security-group "$nsgName"
-}
-
-#Function to create route table
+# Function to create route table
 create_route_table() {
     local name=$1
     local disableBgpRoutePropagation=$2
-    
+
+    if az network route-table show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$name" >/dev/null 2>&1; then
+        echo "Route Table '$name' already exists. Skipping."
+        return 0
+    fi
+
     az network route-table create \
         --name "$name" \
         --resource-group "$RESOURCE_GROUP" \
         --disable-bgp-route-propagation "$disableBgpRoutePropagation"
 }
 
-#Function to create custom route
+# Function to create custom route
 create_custom_route() {
     local name=$1
     local routeTableName=$2
-    local disableBgpRoutePropagation=$2
-    local nextHopType=$3
-    local nextHopIpAddress=$4
+    local addressPrefix=$3
+    local nextHopType=$4
+    local nextHopIpAddress=${5:-}
+
+    if az network route-table route show \
+        --resource-group "$RESOURCE_GROUP" \
+        --route-table-name "$routeTableName" \
+        --name "$name" >/dev/null 2>&1; then
+        echo "Custom Route '$name' already exists in Route Table '$routeTableName'. Skipping."
+        return 0
+    fi
 
     az network route-table route create \
-    --route-table-name "$routeTableName" \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$name" \
-    --address-prefix 10.0.1.0/24 \
-    --next-hop-type "$nextHopType" \
-    --next-hop-ip-address "$nextHopIpAddress"
+        --route-table-name "$routeTableName" \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$name" \
+        --address-prefix "$addressPrefix" \
+        --next-hop-type "$nextHopType" \
+        ${nextHopIpAddress:+--next-hop-ip-address "$nextHopIpAddress"}
 }

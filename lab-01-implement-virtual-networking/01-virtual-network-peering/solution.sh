@@ -2,7 +2,7 @@
 set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "$script_dir/../1. Common/02.CommonFunctions.sh"
+source "$script_dir/../1. Common/functions_create.sh"
 
 #function to create virtual networks and subnets
 create_virtual_networks() {

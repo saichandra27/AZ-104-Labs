@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
+
 #region Variables for Implementing Virtual Networks
-RESOURCE_GROUP="MyResourceGroup"
+
+export RESOURCE_GROUP="MyResourceGroup"
+
+#endregion Variables for Implementing Virtual Networks

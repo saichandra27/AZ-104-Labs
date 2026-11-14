@@ -1,35 +1,56 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-#shellcheck source=/dev/null
-source "$script_dir/../functions_create.sh"
-source "$script_dir/../functions_update.sh"
-source "$script_dir/../variables.sh"
 
-verify_custom_route(){
-    
-    #verify app vnet and public subnets
-    verify_vnet_created_successfully  "$VNET"
-    
-    #verify private subnet
-    verify_subnet_created_successfully "$VNET" "$PRIVATE_SUB_NET" 
-    
-    #verify dmz subnet
-    verify_subnet_created_successfully "$VNET" "$DMZ_SUB_NET_PREFIX"
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_verify.sh"
 
-    #verify public route table
+# shellcheck source=/dev/null
+source "$script_dir/variables.sh"
+
+# Function to verify custom route implementation
+verify_traffic_flow() {
+
+    # Verify VNet
+    verify_vnet_created_successfully "$VNET"
+
+    # Verify public subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$PUBLIC_SUB_NET"
+
+    # Verify private subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$PRIVATE_SUB_NET"
+
+    # Verify DMZ subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$DMZ_SUB_NET"
+
+    # Verify public route table
     verify_custom_route_table "$PUBLIC_TABLE_ROUTE"
 
-    #verify custom route
-    verify_custom_route "$PRODUCTION_SUBNET" "$PUBLIC_TABLE_ROUTE"
+    # Verify custom route
+    verify_custom_route \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$PUBLIC_TO_PRIVATE_ROUTE" \
+        "$PRIVATE_SUB_NET_PREFIX" \
+        "$NEXT_HOP_TYPE" \
+        "$NEXT_HOP_IP_ADDRESS"
 
-    #verify associated subnet with route table
+    # Verify public subnet association with route table
     verify_subnet_with_route_table \
-    "$VNET_NAME" \
-    "$PUBLIC_SUBNET_NAME" \
-    "$ROUTE_TABLE_NAME"
+        "$VNET" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_TABLE_ROUTE"
+    
+    echo "Traffic flow configuration verified!"
+
 }
 
-#execute the function to create_custom_route
-verify_custom_route
+# Execute verification
+verify_traffic_flow

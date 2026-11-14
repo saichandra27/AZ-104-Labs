@@ -28,49 +28,101 @@ create_public_ip_address() {
         --allocation-method Static
 }
 
-# Function to create virtual network
+# Function to create or reconcile virtual network
 create_vnet() {
     local name=$1
     local location=$2
-    local addressprefix=$3
-    local subnetname=$4
-    local subnetprefix=$5
+    local addressPrefix=$3
+    local subnetName=$4
+    local subnetPrefix=$5
 
-    if az network vnet show \
+    if ! az network vnet show \
         --resource-group "$RESOURCE_GROUP" \
         --name "$name" >/dev/null 2>&1; then
-        echo "VNet '$name' already exists. Skipping VNet creation."
+
+        echo "Creating VNet '$name'..."
+
+        az network vnet create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$name" \
+            --location "$location" \
+            --address-prefixes "$addressPrefix" \
+            --subnet-name "$subnetName" \
+            --subnet-prefixes "$subnetPrefix"
+
         return 0
     fi
 
-    az network vnet create \
+    echo "VNet '$name' already exists. Checking configuration..."
+
+    # Check and reconcile VNet address space
+    local existingPrefixes
+
+    existingPrefixes=$(az network vnet show \
         --resource-group "$RESOURCE_GROUP" \
         --name "$name" \
-        --location "$location" \
-        --address-prefixes "$addressprefix" \
-        --subnet-name "$subnetname" \
-        --subnet-prefixes "$subnetprefix"
+        --query "addressSpace.addressPrefixes" \
+        --output tsv)
+
+    if [[ "$existingPrefixes" != "$addressPrefix" ]]; then
+        echo "Updating VNet '$name' address space..."
+
+        az network vnet update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$name" \
+            --address-prefixes "$addressPrefix"
+    else
+        echo "VNet '$name' address space is correct."
+    fi
+
+    # Ensure the initial subnet exists and has the expected prefix
+    create_subnet "$name" "$subnetName" "$subnetPrefix"
 }
 
-# Function to create subnet
+# Function to create or reconcile subnet
 create_subnet() {
     local vnetName=$1
     local subnetName=$2
     local addressPrefix=$3
 
-    if az network vnet subnet show \
+    if ! az network vnet subnet show \
         --resource-group "$RESOURCE_GROUP" \
         --vnet-name "$vnetName" \
         --name "$subnetName" >/dev/null 2>&1; then
-        echo "Subnet '$subnetName' in VNet '$vnetName' already exists. Skipping."
+
+        echo "Creating Subnet '$subnetName' in VNet '$vnetName'..."
+
+        az network vnet subnet create \
+            --resource-group "$RESOURCE_GROUP" \
+            --vnet-name "$vnetName" \
+            --name "$subnetName" \
+            --address-prefixes "$addressPrefix"
+
         return 0
     fi
 
-    az network vnet subnet create \
+    echo "Subnet '$subnetName' already exists. Checking configuration..."
+
+    local existingPrefix
+
+    existingPrefix=$(az network vnet subnet show \
         --resource-group "$RESOURCE_GROUP" \
         --vnet-name "$vnetName" \
         --name "$subnetName" \
-        --address-prefixes "$addressPrefix"
+        --query "addressPrefix" \
+        --output tsv)
+
+    if [[ "$existingPrefix" != "$addressPrefix" ]]; then
+        echo "Updating Subnet '$subnetName' address prefix..."
+
+        az network vnet subnet update \
+            --resource-group "$RESOURCE_GROUP" \
+            --vnet-name "$vnetName" \
+            --name "$subnetName" \
+            --address-prefixes "$addressPrefix"
+    else
+        echo "Subnet '$subnetName' configuration is correct. Skipping."
+    fi
 }
 
 # Function to create virtual network peering
@@ -167,25 +219,48 @@ create_network_security_rule() {
         --destination-port-ranges "$destinationPortRange"
 }
 
-# Function to create route table
+# Function to create or reconcile route table
 create_route_table() {
     local name=$1
     local disableBgpRoutePropagation=$2
 
-    if az network route-table show \
+    if ! az network route-table show \
         --resource-group "$RESOURCE_GROUP" \
         --name "$name" >/dev/null 2>&1; then
-        echo "Route Table '$name' already exists. Skipping."
+
+        echo "Creating Route Table '$name'..."
+
+        az network route-table create \
+            --name "$name" \
+            --resource-group "$RESOURCE_GROUP" \
+            --disable-bgp-route-propagation "$disableBgpRoutePropagation"
+
         return 0
     fi
 
-    az network route-table create \
-        --name "$name" \
+    echo "Route Table '$name' already exists. Checking configuration..."
+
+    local existingSetting
+
+    existingSetting=$(az network route-table show \
         --resource-group "$RESOURCE_GROUP" \
-        --disable-bgp-route-propagation "$disableBgpRoutePropagation"
+        --name "$name" \
+        --query "disableBgpRoutePropagation" \
+        --output tsv)
+
+    if [[ "$existingSetting" != "$disableBgpRoutePropagation" ]]; then
+        echo "Updating Route Table '$name' BGP propagation setting..."
+
+        az network route-table update \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$name" \
+            --disable-bgp-route-propagation "$disableBgpRoutePropagation"
+    else
+        echo "Route Table '$name' configuration is correct. Skipping."
+    fi
 }
 
-# Function to create custom route
+# Function to create or reconcile custom route
 create_custom_route() {
     local name=$1
     local routeTableName=$2
@@ -193,19 +268,66 @@ create_custom_route() {
     local nextHopType=$4
     local nextHopIpAddress=${5:-}
 
-    if az network route-table route show \
+    local args=(
+        az network route-table route create
+        --route-table-name "$routeTableName"
+        --resource-group "$RESOURCE_GROUP"
+        --name "$name"
+        --address-prefix "$addressPrefix"
+        --next-hop-type "$nextHopType"
+    )
+
+    if [[ -n "$nextHopIpAddress" ]]; then
+        args+=(--next-hop-ip-address "$nextHopIpAddress")
+    fi
+
+    if ! az network route-table route show \
         --resource-group "$RESOURCE_GROUP" \
         --route-table-name "$routeTableName" \
         --name "$name" >/dev/null 2>&1; then
-        echo "Custom Route '$name' already exists in Route Table '$routeTableName'. Skipping."
+
+        echo "Creating Custom Route '$name'..."
+
+        "${args[@]}"
         return 0
     fi
 
-    az network route-table route create \
-        --route-table-name "$routeTableName" \
+    echo "Custom Route '$name' already exists. Checking configuration..."
+
+    local existingDetails
+
+    existingDetails=$(az network route-table route show \
         --resource-group "$RESOURCE_GROUP" \
+        --route-table-name "$routeTableName" \
         --name "$name" \
-        --address-prefix "$addressPrefix" \
-        --next-hop-type "$nextHopType" \
-        ${nextHopIpAddress:+--next-hop-ip-address "$nextHopIpAddress"}
+        --query "[addressPrefix,nextHopType,nextHopIpAddress]" \
+        --output tsv)
+
+    local expectedDetails
+
+    expectedDetails=$(printf '%s\t%s\t%s' \
+        "$addressPrefix" \
+        "$nextHopType" \
+        "$nextHopIpAddress")
+
+    if [[ "$existingDetails" != "$expectedDetails" ]]; then
+        echo "Updating Custom Route '$name'..."
+
+        local updateArgs=(
+            az network route-table route update
+            --resource-group "$RESOURCE_GROUP"
+            --route-table-name "$routeTableName"
+            --name "$name"
+            --address-prefix "$addressPrefix"
+            --next-hop-type "$nextHopType"
+        )
+
+        if [[ -n "$nextHopIpAddress" ]]; then
+            updateArgs+=(--next-hop-ip-address "$nextHopIpAddress")
+        fi
+
+        "${updateArgs[@]}"
+    else
+        echo "Custom Route '$name' configuration is correct. Skipping."
+    fi
 }

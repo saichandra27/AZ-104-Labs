@@ -1,0 +1,168 @@
+==================================================
+FILE: C:\Users\saichandra.sv\Downloads\Certifications-Prep\AZ-104\lab-01-implement-virtual-networking\03-manage-and-control-traffic-flow\README.md
+==================================================
+# Exercise - Create custom routes
+
+As you implement your security strategy, you want to control how network traffic is routed across your Azure infrastructure.
+
+In the following exercise, you use a network virtual appliance (NVA) to help secure and monitor traffic. You want to ensure communication between front-end public servers and internal private servers is always routed through the appliance.
+
+You configure the network so that all traffic flowing from a public subnet to a private subnet will be routed through the NVA. To make this flow happen, you create a custom route for the public subnet to route this traffic to a perimeter-network subnet. Later, you deploy an NVA to the perimeter-network subnet.
+
+
+
+==================================================
+FILE: C:\Users\saichandra.sv\Downloads\Certifications-Prep\AZ-104\lab-01-implement-virtual-networking\03-manage-and-control-traffic-flow\solution.sh
+==================================================
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_create.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_update.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/variables.sh"
+
+# Function to implement custom routes
+deploy_traffic_flow() {
+
+    # Create or reconcile VNet and public subnet
+    create_vnet \
+        "$VNET" \
+        "$LOCATION" \
+        "$PUBLIC_V_NET_PREFIX" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_SUB_NET_PREFIX"
+
+    # Create or reconcile private subnet
+    create_subnet \
+        "$VNET" \
+        "$PRIVATE_SUB_NET" \
+        "$PRIVATE_SUB_NET_PREFIX"
+
+    # Create or reconcile DMZ subnet
+    create_subnet \
+        "$VNET" \
+        "$DMZ_SUB_NET" \
+        "$DMZ_SUB_NET_PREFIX"
+
+    # Create or reconcile public route table
+    create_route_table \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$DISABLEBGPROUTEPROPAGATION"
+
+    # Create or reconcile custom route to private subnet through planned NVA
+    create_custom_route \
+        "$PRODUCTION_SUBNET" \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$PRIVATE_SUB_NET_PREFIX" \
+        "$NEXT_HOP_TYPE" \
+        "$NEXT_HOP_IP_ADDRESS"
+
+    # Associate public subnet with route table
+    update_subnet_with_route_table \
+        "$VNET" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_TABLE_ROUTE"
+}
+
+# Execute implementation
+deploy_traffic_flow
+
+
+==================================================
+FILE: C:\Users\saichandra.sv\Downloads\Certifications-Prep\AZ-104\lab-01-implement-virtual-networking\03-manage-and-control-traffic-flow\variables.sh
+==================================================
+#!/usr/bin/env bash
+
+#region Variables for Implementing Custom Routes
+
+export LOCATION="eastus"
+
+export VNET="vnet"
+
+export PUBLIC_SUB_NET="publicsubnet"
+export PRIVATE_SUB_NET="privatesubnet"
+export DMZ_SUB_NET="dmzsubnet"
+
+export PUBLIC_V_NET_PREFIX="10.0.0.0/16"
+
+export PUBLIC_SUB_NET_PREFIX="10.0.0.0/24"
+export PRIVATE_SUB_NET_PREFIX="10.0.1.0/24"
+export DMZ_SUB_NET_PREFIX="10.0.2.0/24"
+
+export PUBLIC_TABLE_ROUTE="publictable"
+export PRODUCTION_SUBNET="route-to-private-subnet"
+
+export NEXT_HOP_TYPE="VirtualAppliance"
+export NEXT_HOP_IP_ADDRESS="10.0.2.4"
+
+export DISABLEBGPROUTEPROPAGATION="false"
+
+#endregion Variables for Implementing Custom Routes
+
+
+==================================================
+FILE: C:\Users\saichandra.sv\Downloads\Certifications-Prep\AZ-104\lab-01-implement-virtual-networking\03-manage-and-control-traffic-flow\verify.sh
+==================================================
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_verify.sh"
+
+# shellcheck source=/dev/null
+source "$script_dir/variables.sh"
+
+# Function to verify custom route implementation
+verify_traffic_flow() {
+
+    # Verify VNet
+    verify_vnet_created_successfully "$VNET"
+
+    # Verify public subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$PUBLIC_SUB_NET"
+
+    # Verify private subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$PRIVATE_SUB_NET"
+
+    # Verify DMZ subnet
+    verify_subnet_created_successfully \
+        "$VNET" \
+        "$DMZ_SUB_NET"
+
+    # Verify public route table
+    verify_custom_route_table "$PUBLIC_TABLE_ROUTE"
+
+    # Verify custom route
+    verify_custom_route \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$PRODUCTION_SUBNET" \
+        "$PRIVATE_SUB_NET_PREFIX" \
+        "$NEXT_HOP_TYPE" \
+        "$NEXT_HOP_IP_ADDRESS"
+
+    # Verify public subnet association with route table
+    verify_subnet_with_route_table \
+        "$VNET" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_TABLE_ROUTE"
+}
+
+# Execute verification
+verify_traffic_flow
+
+

@@ -1,32 +1,60 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-#shellcheck source=/dev/null
-source "$script_dir/../functions_create.sh"
-source "$script_dir/../functions_update.sh"
-source "$script_dir/../variables.sh"
 
-create_custom_route(){
-    
-    #create app vnet and public subnets
-    create_vnet   "$VNET" "$LOCATION" "$PUBLIC_V_NET_PREFIX" "$PUBLIC_SUB_NET" "$PUBLIC_SUB_NET_PREFIX"
-    
-    #create private subnet
-    create_subnet "$VNET" "$PRIVATE_SUB_NET" "$PRIVATE_SUB_NET_PREFIX"
-    
-    #create dmz subnet
-    create_subnet "$VNET" "$DMZ_SUB_NET_PREFIX" "$DMZ_SUB_NET_PREFIX"
+# shellcheck source=/dev/null
+source "$script_dir/variables.sh"
 
-    #create public route table
-    create_route_table "$PUBLIC_TABLE_ROUTE" "$DISABLEBGPROUTEPROPAGATION"
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_create.sh"
 
-    #create custom route
-    create_custom_route "$PRODUCTION_SUBNET" "$PUBLIC_TABLE_ROUTE" "$NEXT_HOP_TYPE" "$NEXT_HOP_IP_ADDRESS"
+# shellcheck source=/dev/null
+source "$script_dir/../common/functions_update.sh"
 
-    #associate subnet with route table
-    update_subnet_with_route_table "$PUBLIC_SUB_NET" "$VNET" "$PUBLIC_TABLE_ROUTE"
+# Function to implement custom routes
+deploy_traffic_flow() {
+
+    # Create or reconcile VNet and public subnet
+    create_vnet \
+        "$VNET" \
+        "$LOCATION" \
+        "$PUBLIC_V_NET_PREFIX" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_SUB_NET_PREFIX"
+
+    # Create or reconcile private subnet
+    create_subnet \
+        "$VNET" \
+        "$PRIVATE_SUB_NET" \
+        "$PRIVATE_SUB_NET_PREFIX"
+
+    # Create or reconcile DMZ subnet
+    create_subnet \
+        "$VNET" \
+        "$DMZ_SUB_NET" \
+        "$DMZ_SUB_NET_PREFIX"
+
+    # Create or reconcile public route table
+    create_route_table \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$DISABLEBGPROUTEPROPAGATION"
+
+    # Create or reconcile custom route to private subnet through planned NVA
+    create_custom_route \
+        "$PUBLIC_TO_PRIVATE_ROUTE" \
+        "$PUBLIC_TABLE_ROUTE" \
+        "$PRIVATE_SUB_NET_PREFIX" \
+        "$NEXT_HOP_TYPE" \
+        "$NEXT_HOP_IP_ADDRESS"
+
+    # Associate public subnet with route table
+    update_subnet_with_route_table \
+        "$VNET" \
+        "$PUBLIC_SUB_NET" \
+        "$PUBLIC_TABLE_ROUTE"
 }
 
-#execute the function to create_custom_route
-create_virtual_networks
+# Execute implementation
+deploy_traffic_flow
